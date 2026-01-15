@@ -214,17 +214,23 @@ async function showMenu(replyToken) {
 }
 
 // ===== GOOGLE SHEETS OPERATIONS =====
+// Thêm constant
+const SHEET_ID = process.env.SHEET_ID;
+const SHEET_NAME = process.env.SHEET_NAME || 'Sheet1'; // Mặc định Sheet1
+
+// Sửa hàm getSheet
 async function getSheet() {
-  const serviceAccountAuth = new JWT({
-    email: process.env.GOOGLE_SERVICE_EMAIL,
-    key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    scopes: ['https://www.googleapis.com/auth/spreadsheets']
+  const doc = new GoogleSpreadsheet(SHEET_ID);
+  await doc.useServiceAccountAuth({
+    client_email: process.env.GOOGLE_SERVICE_EMAIL,
+    private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n')
   });
-  
-  const doc = new GoogleSpreadsheet(SHEET_ID, serviceAccountAuth);
   await doc.loadInfo();
-  return doc.sheetsByIndex[0];
+  
+  // Dùng tên sheet từ env
+  return doc.sheetsByTitle[SHEET_NAME];
 }
+
 
 async function saveExpense(groupId, data) {
   try {
