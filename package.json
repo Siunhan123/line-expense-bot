@@ -1,0 +1,17 @@
+{
+  "name": "line-expense-bot",
+  "version": "1.0.0",
+  "description": "LINE Bot chi tiêu + Google Sheets",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "@line/bot-sdk": "^7.6.0",
+    "google-spreadsheet": "^4.1.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
