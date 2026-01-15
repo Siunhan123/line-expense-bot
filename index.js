@@ -308,7 +308,7 @@ async function askCategory(replyToken) {
 }
 
 async function askAmount(replyToken) {
-  await replyText(replyToken, '💵 Nhập số tiền:\n\nVí dụ: 120000', [
+  await replyText(replyToken, '💵 Nhập số tiền:\n\nVí dụ: 1200 ', [
     { label: '↩️ Menu', data: 'MENU' }
   ]);
 }
@@ -463,7 +463,7 @@ async function calculateSumCustom(groupId, startDateStr, endDateStr, replyToken)
       result += '\n\n📊 Chi tiết theo danh mục:';
       for (const cat in byCategory) {
         const c = byCategory[cat];
-        result += `\n${cat}: Cash ${formatMoney(c.cash)} | Online ${formatMoney(c.online)} | ${formatMoney(c.cash + c.online)}`;
+        result += `\n${cat}: ${formatMoney(c.cash + c.online)} | Cash ${formatMoney(c.cash)} | Online ${formatMoney(c.online)}`;
       }
     } else {
       result += '\n\n📊 Chưa có dữ liệu.';
