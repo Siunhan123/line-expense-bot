@@ -4,10 +4,6 @@ const { GoogleSpreadsheet } = require('google-spreadsheet');
 
 const app = express();
 
-// BODY PARSER
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
 // ===== CONFIG =====
 const lineConfig = {
   channelAccessToken: process.env.LINE_TOKEN,
@@ -99,7 +95,6 @@ async function handleTextMessage(userId, text, state, replyToken) {
     await showConfirm(replyToken, state);
     
   } else if (state.step === 'CUSTOM_DATE_START') {
-    // Nhập ngày bắt đầu
     const dateMatch = cleanText.match(/(\d{1,2})\/(\d{1,2})/);
     if (!dateMatch) {
       await replyText(replyToken, '❌ Định dạng ngày không đúng!\n\nVui lòng nhập theo format: DD/MM\nVí dụ: 01/01 hoặc 15/12');
@@ -112,7 +107,6 @@ async function handleTextMessage(userId, text, state, replyToken) {
     await replyText(replyToken, '📅 Nhập ngày kết thúc (DD/MM):\n\nVí dụ: 15/01');
     
   } else if (state.step === 'CUSTOM_DATE_END') {
-    // Nhập ngày kết thúc
     const dateMatch = cleanText.match(/(\d{1,2})\/(\d{1,2})/);
     if (!dateMatch) {
       await replyText(replyToken, '❌ Định dạng ngày không đúng!\n\nVui lòng nhập theo format: DD/MM\nVí dụ: 01/01 hoặc 15/12');
@@ -123,7 +117,6 @@ async function handleTextMessage(userId, text, state, replyToken) {
     state.step = 'MENU';
     userStates.set(userId, state);
     
-    // Tính tổng với custom date
     await calculateSumCustom(userId, state.customStartDate, state.customEndDate, replyToken);
     userStates.delete(userId);
     
@@ -186,7 +179,6 @@ async function handlePostback(userId, data, state, replyToken) {
     await showMenu(replyToken);
     
   } else if (data === 'SUM_CUSTOM') {
-    // Chọn ngày tùy chọn
     state.step = 'CUSTOM_DATE_START';
     userStates.set(userId, state);
     await replyText(replyToken, '🧾 Tính tổng tùy chọn\n\n📅 Nhập ngày bắt đầu (DD/MM):\n\nVí dụ: 01/01 hoặc 15/12');
@@ -201,8 +193,8 @@ async function handlePostback(userId, data, state, replyToken) {
 // ===== UI =====
 async function askPayment(replyToken) {
   await replyText(replyToken, '💰 Chọn loại thanh toán:', [
-    { label: '💵 Tiền mặt', data: 'PAY_CASH' },
-    { label: '💳 Online', data: 'PAY_ONLINE' },
+    { label: '💵 Tiền mặt cùi', data: 'PAY_CASH' },
+    { label: '💳 Online xịn', data: 'PAY_ONLINE' },
     { label: '↩️ Menu', data: 'MENU' }
   ]);
 }
@@ -286,7 +278,6 @@ async function saveExpense(groupId, data) {
   }
 }
 
-// ===== TÍNH TỔNG =====
 async function calculateSum(groupId, period, replyToken) {
   try {
     const sheet = await getSheet();
@@ -311,7 +302,7 @@ async function calculateSum(groupId, period, replyToken) {
     
     const summary = await processSummary(rows, groupId, startDate);
     
-    let result = `${periodLabel}\n\n` + summary;
+    let result = `${periodLabel}\n\n${summary}`;
     
     await replyText(replyToken, result, [
       { label: '➕ Nhập mới', data: 'NEW_EXPENSE' },
@@ -324,7 +315,6 @@ async function calculateSum(groupId, period, replyToken) {
   }
 }
 
-// ===== TÍNH TỔNG TÙY CHỌN =====
 async function calculateSumCustom(groupId, startDateStr, endDateStr, replyToken) {
   try {
     const sheet = await getSheet();
@@ -333,22 +323,18 @@ async function calculateSumCustom(groupId, startDateStr, endDateStr, replyToken)
     const now = new Date();
     const currentYear = now.getFullYear();
     
-    // Parse start date (DD/MM)
     const [startDay, startMonth] = startDateStr.split('/').map(n => parseInt(n));
     const startDate = new Date(currentYear, startMonth - 1, startDay);
     
-    // Parse end date (DD/MM)
     const [endDay, endMonth] = endDateStr.split('/').map(n => parseInt(n));
     const endDate = new Date(currentYear, endMonth - 1, endDay, 23, 59, 59);
     
-    // Nếu end date < start date, có thể là năm sau
     if (endDate < startDate) {
       endDate.setFullYear(currentYear + 1);
     }
     
     const periodLabel = `🧾 Tổng kết tùy chọn\n(${formatDate(startDate)} → ${formatDate(endDate)})`;
     
-    // Filter rows trong khoảng custom
     let totalCash = 0, totalOnline = 0;
     const byCategory = {};
     
@@ -376,10 +362,7 @@ async function calculateSumCustom(groupId, startDateStr, endDateStr, replyToken)
     });
     
     let result = `${periodLabel}\n\n`;
-    result += `💰 Tổng quan:\n`;
-    result += `Tổng chi: ${formatMoney(totalCash + totalOnline)}\n`;
-    result += `Tiền mặt: ${formatMoney(totalCash)}\n`;
-    result += `Online: ${formatMoney(totalOnline)}`;
+    result += `💰 Tổng quan:\nTổng chi: ${formatMoney(totalCash + totalOnline)}\nTiền mặt: ${formatMoney(totalCash)}\nOnline: ${formatMoney(totalOnline)}`;
     
     if (Object.keys(byCategory).length > 0) {
       result += '\n\n📊 Chi tiết theo danh mục:';
@@ -402,7 +385,6 @@ async function calculateSumCustom(groupId, startDateStr, endDateStr, replyToken)
   }
 }
 
-// ===== PROCESS SUMMARY =====
 async function processSummary(rows, groupId, startDate) {
   let totalCash = 0, totalOnline = 0;
   const byCategory = {};
@@ -430,10 +412,7 @@ async function processSummary(rows, groupId, startDate) {
     }
   });
   
-  let result = `💰 Tổng quan:\n`;
-  result += `Tổng chi: ${formatMoney(totalCash + totalOnline)}\n`;
-  result += `Tiền mặt: ${formatMoney(totalCash)}\n`;
-  result += `Online: ${formatMoney(totalOnline)}`;
+  let result = `💰 Tổng quan:\nTổng chi: ${formatMoney(totalCash + totalOnline)}\nTiền mặt: ${formatMoney(totalCash)}\nOnline: ${formatMoney(totalOnline)}`;
   
   if (Object.keys(byCategory).length > 0) {
     result += '\n\n📊 Chi tiết theo danh mục:';
@@ -448,7 +427,6 @@ async function processSummary(rows, groupId, startDate) {
   return result;
 }
 
-// ===== REPLY =====
 async function replyText(replyToken, text, quickReplyItems = null) {
   const message = { type: 'text', text };
   
@@ -464,7 +442,6 @@ async function replyText(replyToken, text, quickReplyItems = null) {
   await client.replyMessage(replyToken, [message]);
 }
 
-// ===== HELPERS =====
 function formatMoney(amount) {
   return String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' đ';
 }
@@ -475,7 +452,6 @@ function formatDate(date) {
   return `${day}/${month}`;
 }
 
-// ===== START SERVER =====
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
