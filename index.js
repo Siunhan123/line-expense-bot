@@ -289,8 +289,8 @@ async function handlePostback(userId, data, state, replyToken) {
 // UI FUNCTIONS
 async function askPayment(replyToken) {
   await replyText(replyToken, '💰 Chọn loại thanh toán:', [
-    { label: '💵 Tiền mặt', data: 'PAY_CASH' },
-    { label: '💳 Online', data: 'PAY_ONLINE' },
+    { label: '💵 Tiền mặt cùi', data: 'PAY_CASH' },
+    { label: '💳 Online xịn', data: 'PAY_ONLINE' },
     { label: '↩️ Menu', data: 'MENU' }
   ]);
 }
@@ -459,15 +459,16 @@ async function calculateSumCustom(groupId, startDateStr, endDateStr, replyToken)
     
     let result = `${periodLabel}\n\n💰 Tổng quan:\nTổng chi: ${formatMoney(totalCash + totalOnline)}\nTiền mặt: ${formatMoney(totalCash)}\nOnline: ${formatMoney(totalOnline)}`;
     
-    if (Object.keys(byCategory).length > 0) {
-      result += '\n\n📊 Chi tiết:';
+        if (Object.keys(byCategory).length > 0) {
+      result += '\n\n📊 Chi tiết theo danh mục:';
       for (const cat in byCategory) {
         const c = byCategory[cat];
-        result += `\n${cat}: ${formatMoney(c.cash + c.online)}`;
+        result += `\n${cat}: Cash ${formatMoney(c.cash)} | Online ${formatMoney(c.online)} | ${formatMoney(c.cash + c.online)}`;
       }
     } else {
       result += '\n\n📊 Chưa có dữ liệu.';
     }
+
     
     await replyText(replyToken, result, [
       { label: '➕ Nhập mới', data: 'NEW_EXPENSE' },
@@ -519,10 +520,10 @@ function processSummary(rows, groupId, startDate) {
   let result = `💰 Tổng quan:\nTổng chi: ${formatMoney(totalCash + totalOnline)}\nTiền mặt: ${formatMoney(totalCash)}\nOnline: ${formatMoney(totalOnline)}`;
   
   if (Object.keys(byCategory).length > 0) {
-    result += '\n\n📊 Chi tiết:';
+    result += '\n\n📊 Chi tiết theo danh mục:';
     for (const cat in byCategory) {
       const c = byCategory[cat];
-      result += `\n${cat}: ${formatMoney(c.cash + c.online)}`;
+      result += `\n${cat}: Cash ${formatMoney(c.cash)} | Online ${formatMoney(c.online)} | ${formatMoney(c.cash + c.online)}`;
     }
   } else {
     result += '\n\n📊 Chưa có dữ liệu.';
@@ -530,6 +531,7 @@ function processSummary(rows, groupId, startDate) {
   
   return result;
 }
+
 
 // REPLY HELPER
 async function replyText(replyToken, text, quickReplyItems) {
@@ -548,7 +550,7 @@ async function replyText(replyToken, text, quickReplyItems) {
 }
 
 function formatMoney(amount) {
-  return String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' đ';
+  return String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
 function formatDate(date) {
