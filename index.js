@@ -42,16 +42,146 @@ async function getAuthClient() {
 }
 
 // ===== SHEETS OPERATIONS =====
+// ===== SHEETS OPERATIONS =====
+async function ensureHeader() {
+  try {
+    const rows = await getSheetData();
+    
+    if (rows.length === 0 || rows[0][0] !== 'Timestamp') {
+      console.log('Creating header row...');
+      
+      const auth = await getAuthClient();
+      const token = await auth.getAccessToken();
+      
+      // Dùng A1 notation đơn giản
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/A1:append?valueInputOption=USER_ENTERED`;
+      
+      const data = JSON.stringify({
+        range: 'A1:F1',
+        majorDimension: 'ROWS',
+        values: [['Timestamp', 'GroupID', 'Payment', 'Category', 'Amount', 'Note']]
+      });
+      
+      return new Promise((resolve, reject) => {
+        const options = {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token.token}`,
+            'Content-Type': 'application/json'
+          }
+        };
+        
+        const req = https.request(url, options, (res) => {
+          let body = '';
+          res.on('data', chunk => body += chunk);
+          res.on('end', () => {
+            console.log('Header response:', res.statusCode, body);
+            if (res.statusCode >= 200 && res.statusCode < 300) {
+              resolve(JSON.parse(body));
+            } else {
+              reject(new Error(`Create header error: ${body}`));
+            }
+          });
+        });
+        
+        req.on('error', reject);
+        req.write(data);
+        req.end();
+      });
+    }
+  } catch (error) {
+    console.error('Ensure header error:', error);
+  }
+}
+
 async function appendToSheet(values) {
+  await ensureHeader();
+  
   const auth = await getAuthClient();
   const token = await auth.getAccessToken();
   
-  const range = `${SHEET_NAME}!A:F`;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`;
+  // Đơn giản hơn: không dùng sheet name trong URL
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/A:F:append?valueInputOption=USER_ENTERED`;
   
-  const data = JSON.stringify({
+  const payload = {
+    range: 'A:F',
+    majorDimension: 'ROWS',
     values: [values]
+  };
+  
+  const data = JSON.stringify(payload);
+  
+  console.log('Appending data:', payload);
+  
+  return new Promise((resolve, reject) => {
+    const options = {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token.token}`,
+        'Content-Type': 'application/json'
+      }
+    };
+    
+    const req = https.request(url, options, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        console.log('Append response:', res.statusCode);
+        console.log('Append body:', body);
+        
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(JSON.parse(body));
+        } else {
+          reject(new Error(`Sheets API error: ${res.statusCode} ${body}`));
+        }
+      });
+    });
+    
+    req.on('error', (err) => {
+      console.error('Append request error:', err);
+      reject(err);
+    });
+    
+    req.write(data);
+    req.end();
   });
+}
+
+async function getSheetData() {
+  const auth = await getAuthClient();
+  const token = await auth.getAccessToken();
+  
+  // Đơn giản: lấy toàn bộ sheet đầu tiên
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/A:F`;
+  
+  return new Promise((resolve, reject) => {
+    const options = {
+      headers: {
+        'Authorization': `Bearer ${token.token}`
+      }
+    };
+    
+    https.get(url, options, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        console.log('Get data response:', res.statusCode);
+        
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          const data = JSON.parse(body);
+          resolve(data.values || []);
+        } else {
+          console.error('Get sheet error:', res.statusCode, body);
+          reject(new Error(`Sheets API error: ${res.statusCode} ${body}`));
+        }
+      });
+    }).on('error', (err) => {
+      console.error('Get sheet request error:', err);
+      reject(err);
+    });
+  });
+}
+
   
   return new Promise((resolve, reject) => {
     const options = {
@@ -81,19 +211,7 @@ async function appendToSheet(values) {
   });
 }
 
-async function getSheetData() {
-  const auth = await getAuthClient();
-  const token = await auth.getAccessToken();
-  
-  const range = `${SHEET_NAME}!A:F`;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}`;
-  
-  return new Promise((resolve, reject) => {
-    const options = {
-      headers: {
-        'Authorization': `Bearer ${token.token}`
-      }
-    };
+
     
     https.get(url, options, (res) => {
       let body = '';
