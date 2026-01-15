@@ -2,6 +2,7 @@ const express = require('express');
 const line = require('@line/bot-sdk');
 const { JWT } = require('google-auth-library');
 const https = require('https');
+const cron = require('node-cron');
 
 const app = express();
 
@@ -39,6 +40,133 @@ async function getAuthClient() {
   
   return authClient;
 }
+
+// ===== THÊM HÀM ĐỌC GROUP ID TỪ CỘT B =====
+async function getGroupIdsFromSheet() {
+  try {
+    const auth = await getAuthClient();
+    const token = await auth.getAccessToken();
+    
+    // Đọc cột B từ dòng 2 trở đi (bỏ header)
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/B2:B`;
+    
+    return new Promise((resolve, reject) => {
+      const options = {
+        headers: {
+          'Authorization': `Bearer ${token.token}`
+        }
+      };
+      
+      https.get(url, options, (res) => {
+        let body = '';
+        res.on('data', chunk => { body += chunk; });
+        res.on('end', () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            const data = JSON.parse(body);
+            
+            if (!data.values || data.values.length === 0) {
+              console.log('⚠️ No GroupID found in column B');
+              resolve([]);
+              return;
+            }
+            
+            // Lọc bỏ ô trống và lấy unique IDs
+            const groupIds = [...new Set(
+              data.values
+                .map(row => row[0])
+                .filter(id => id && id.trim() !== '' && id.startsWith('C'))
+            )];
+            
+            console.log(`📋 Found ${groupIds.length} unique GroupIDs:`, groupIds);
+            resolve(groupIds);
+          } else {
+            console.error('Get GroupID error:', res.statusCode, body);
+            resolve([]);
+          }
+        });
+      }).on('error', (err) => {
+        console.error('HTTPS error:', err);
+        resolve([]);
+      });
+    });
+    
+  } catch (error) {
+    console.error('❌ Error reading GroupIDs:', error.message);
+    return [];
+  }
+}
+
+// ===== CRON JOB: GỬI NHẮC NHỞ LÚC 22:00 (10H ĐÊM) GIỜ TOKYO =====
+cron.schedule('0 22 * * *', async () => {
+  try {
+    console.log('⏰ [22:00 JST] Starting daily reminder job...');
+    
+    const groupIds = await getGroupIdsFromSheet();
+    
+    if (groupIds.length === 0) {
+      console.log('⚠️ No groups to send reminders');
+      return;
+    }
+    
+    console.log(`📤 Sending reminders to ${groupIds.length} groups...`);
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const groupId of groupIds) {
+      try {
+        await client.pushMessage(groupId, {
+          type: 'text',
+          text: '⏰ Nhắc nhở hàng ngày!\n\n💰 Các bạn đã nhập chi tiêu hôm nay chưa?\n\n📝 Gửi tin nhắn bất kỳ để mở menu và bắt đầu ghi chép!'
+        });
+        
+        successCount++;
+        console.log(`✅ Sent to: ${groupId}`);
+        
+        // Delay 1 giây giữa mỗi group để tránh spam
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+      } catch (error) {
+        failCount++;
+        console.error(`❌ Failed to send to ${groupId}: ${error.message}`);
+      }
+    }
+    
+    console.log(`✅ Reminder job completed! Success: ${successCount}, Failed: ${failCount}`);
+    
+  } catch (error) {
+    console.error('❌ Cron job error:', error);
+  }
+}, {
+  timezone: "Asia/Tokyo"
+});
+
+console.log('✅ Bot started! Daily reminder scheduled for 22:00 JST');
+
+// ===== TEST NGAY (XÓA SAU KHI TEST XONG) =====
+setTimeout(async () => {
+  console.log('🧪 Testing reminder in 10 seconds...');
+  
+  try {
+    const groupIds = await getGroupIdsFromSheet();
+    console.log(`🧪 Found ${groupIds.length} GroupIDs to test:`, groupIds);
+    
+    for (const groupId of groupIds) {
+      try {
+        await client.pushMessage(groupId, {
+          type: 'text',
+          text: '🧪 TEST: Bot nhắc nhở đã hoạt động!\n\nTin nhắn nhắc nhở thật sẽ được gửi lúc 22:00 (10h đêm) giờ Tokyo hàng ngày.\n\n✅ Bạn có thể xóa tin nhắn này!'
+        });
+        console.log(`✅ Test sent to: ${groupId}`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.error(`❌ Test failed for ${groupId}:`, error.message);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Test error:', error);
+  }
+}, 10000);
+// ===== HẾT PHẦN TEST =====
 
 // SHEETS OPERATIONS
 async function appendToSheet(values) {
@@ -459,7 +587,7 @@ async function calculateSumCustom(groupId, startDateStr, endDateStr, replyToken)
     
     let result = `${periodLabel}\n\n💰 Tổng quan:\nTổng chi: ${formatMoney(totalCash + totalOnline)}\nTiền mặt: ${formatMoney(totalCash)}\nOnline: ${formatMoney(totalOnline)}`;
     
-        if (Object.keys(byCategory).length > 0) {
+    if (Object.keys(byCategory).length > 0) {
       result += '\n\n📊 Chi tiết theo danh mục:';
       for (const cat in byCategory) {
         const c = byCategory[cat];
@@ -468,7 +596,6 @@ async function calculateSumCustom(groupId, startDateStr, endDateStr, replyToken)
     } else {
       result += '\n\n📊 Chưa có dữ liệu.';
     }
-
     
     await replyText(replyToken, result, [
       { label: '➕ Nhập mới', data: 'NEW_EXPENSE' },
@@ -531,7 +658,6 @@ function processSummary(rows, groupId, startDate) {
   
   return result;
 }
-
 
 // REPLY HELPER
 async function replyText(replyToken, text, quickReplyItems) {
