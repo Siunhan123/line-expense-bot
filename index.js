@@ -22,12 +22,7 @@ const CATEGORIES = {
   '🍽️': 'Ăn ngoài',
   '🎉': 'Vui chơi',
   '🛍️': 'Mua đồ',
-  '📦': 'Đồ dùng',
-  '🚗': 'Xăng xe',
-  '💊': 'Thuốc',
-  '🎁': 'Quà tặng',
-  '📱': 'Điện thoại',
-  '👕': 'Quần áo'
+  '📦': 'Đồ dùng'
 };
 
 // GOOGLE AUTH
@@ -118,7 +113,7 @@ async function getSheetData() {
 
 // HEALTH CHECK
 app.get('/', (req, res) => {
-  res.send('LINE Bot is running!');
+  res.send('✅ LINE Bot is running!');
 });
 
 // WEBHOOK
@@ -164,7 +159,9 @@ async function handleTextMessage(userId, text, state, replyToken) {
   if (state.step === 'AMOUNT') {
     const cleanAmount = cleanText.replace(/[.,\s]/g, '');
     if (!/^\d+$/.test(cleanAmount)) {
-      await replyText(replyToken, 'Số tiền không hợp lệ! Vui lòng nhập số.\n\nVí dụ: 50000');
+      await replyText(replyToken, '❌ Số tiền không hợp lệ! Vui lòng nhập số.\n\nVí dụ: 50000', [
+        { label: '↩️ Menu', data: 'MENU' }
+      ]);
       return;
     }
     
@@ -187,18 +184,24 @@ async function handleTextMessage(userId, text, state, replyToken) {
     
   } else if (state.step === 'CUSTOM_DATE_START') {
     if (!/^\d{1,2}\/\d{1,2}$/.test(cleanText)) {
-      await replyText(replyToken, 'Định dạng không đúng! Nhập: DD/MM\n\nVí dụ: 01/01');
+      await replyText(replyToken, '❌ Định dạng không đúng! Nhập: DD/MM\n\nVí dụ: 01/01', [
+        { label: '↩️ Menu', data: 'MENU' }
+      ]);
       return;
     }
     
     state.customStartDate = cleanText;
     state.step = 'CUSTOM_DATE_END';
     userStates.set(userId, state);
-    await replyText(replyToken, 'Nhập ngày kết thúc (DD/MM):\n\nVí dụ: 15/01');
+    await replyText(replyToken, '📅 Nhập ngày kết thúc (DD/MM):\n\nVí dụ: 15/01', [
+      { label: '↩️ Menu', data: 'MENU' }
+    ]);
     
   } else if (state.step === 'CUSTOM_DATE_END') {
     if (!/^\d{1,2}\/\d{1,2}$/.test(cleanText)) {
-      await replyText(replyToken, 'Định dạng không đúng! Nhập: DD/MM\n\nVí dụ: 15/01');
+      await replyText(replyToken, '❌ Định dạng không đúng! Nhập: DD/MM\n\nVí dụ: 15/01', [
+        { label: '↩️ Menu', data: 'MENU' }
+      ]);
       return;
     }
     
@@ -225,13 +228,13 @@ async function handlePostback(userId, data, state, replyToken) {
     await askSumPeriod(replyToken);
     
   } else if (data === 'PAY_CASH') {
-    state.payment = 'Tiền mặt';
+    state.payment = '💵 Tiền mặt';
     state.step = 'CATEGORY';
     userStates.set(userId, state);
     await askCategory(replyToken);
     
   } else if (data === 'PAY_ONLINE') {
-    state.payment = 'Online';
+    state.payment = '💳 Online';
     state.step = 'CATEGORY';
     userStates.set(userId, state);
     await askCategory(replyToken);
@@ -241,7 +244,9 @@ async function handlePostback(userId, data, state, replyToken) {
     if (catKey === 'CUSTOM') {
       state.step = 'CUSTOM_CAT';
       userStates.set(userId, state);
-      await replyText(replyToken, 'Nhập danh mục của bạn:\n\n(Ví dụ: Xăng xe, Thuốc...)');
+      await replyText(replyToken, '✍️ Nhập danh mục của bạn:\n\n(Ví dụ: Xăng xe, Thuốc, Quà tặng...)', [
+        { label: '↩️ Menu', data: 'MENU' }
+      ]);
     } else {
       state.category = CATEGORIES[catKey] || catKey;
       state.step = 'AMOUNT';
@@ -258,9 +263,9 @@ async function handlePostback(userId, data, state, replyToken) {
   } else if (data === 'CONFIRM_SAVE') {
     await saveExpense(userId, state);
     userStates.delete(userId);
-    await replyText(replyToken, 'Đã lưu thành công!', [
-      { label: 'Nhập mới', data: 'NEW_EXPENSE' },
-      { label: 'Tính tổng', data: 'SUM' }
+    await replyText(replyToken, '✅ Đã lưu thành công!', [
+      { label: '➕ Nhập mới', data: 'NEW_EXPENSE' },
+      { label: '🧮 Tính tổng', data: 'SUM' }
     ]);
     
   } else if (data === 'CONFIRM_CANCEL' || data === 'MENU') {
@@ -270,7 +275,9 @@ async function handlePostback(userId, data, state, replyToken) {
   } else if (data === 'SUM_CUSTOM') {
     state.step = 'CUSTOM_DATE_START';
     userStates.set(userId, state);
-    await replyText(replyToken, 'Tính tổng tùy chọn\n\nNhập ngày bắt đầu (DD/MM):\n\nVí dụ: 01/01');
+    await replyText(replyToken, '🧾 Tính tổng tùy chọn\n\n📅 Nhập ngày bắt đầu (DD/MM):\n\nVí dụ: 01/01', [
+      { label: '↩️ Menu', data: 'MENU' }
+    ]);
     
   } else if (data.startsWith('SUM_')) {
     await calculateSum(userId, data.replace('SUM_', ''), replyToken);
@@ -281,9 +288,10 @@ async function handlePostback(userId, data, state, replyToken) {
 
 // UI FUNCTIONS
 async function askPayment(replyToken) {
-  await replyText(replyToken, 'Chọn loại thanh toán:', [
-    { label: 'Tiền mặt', data: 'PAY_CASH' },
-    { label: 'Online', data: 'PAY_ONLINE' }
+  await replyText(replyToken, '💰 Chọn loại thanh toán:', [
+    { label: '💵 Tiền mặt', data: 'PAY_CASH' },
+    { label: '💳 Online', data: 'PAY_ONLINE' },
+    { label: '↩️ Menu', data: 'MENU' }
   ]);
 }
 
@@ -293,44 +301,49 @@ async function askCategory(replyToken) {
     data: 'CAT_' + key
   }));
   
-  items.push({ label: 'Nhập tay', data: 'CAT_CUSTOM' });
+  items.push({ label: '✍️ Nhập tay', data: 'CAT_CUSTOM' });
+  items.push({ label: '↩️ Menu', data: 'MENU' });
   
-  await replyText(replyToken, 'Chọn danh mục:', items.slice(0, 13));
+  await replyText(replyToken, '📂 Chọn danh mục:', items);
 }
 
 async function askAmount(replyToken) {
-  await replyText(replyToken, 'Nhập số tiền:\n\nVí dụ: 120000');
+  await replyText(replyToken, '💵 Nhập số tiền:\n\nVí dụ: 120000', [
+    { label: '↩️ Menu', data: 'MENU' }
+  ]);
 }
 
 async function askNote(replyToken) {
-  await replyText(replyToken, 'Nhập ghi chú:', [
-    { label: 'Bỏ qua', data: 'NOTE_SKIP' }
+  await replyText(replyToken, '📝 Nhập ghi chú (hoặc bỏ qua):', [
+    { label: '⏭️ Bỏ qua', data: 'NOTE_SKIP' },
+    { label: '↩️ Menu', data: 'MENU' }
   ]);
 }
 
 async function showConfirm(replyToken, data) {
-  const text = `Xác nhận:\n\nThanh toán: ${data.payment}\nDanh mục: ${data.category}\nSố tiền: ${formatMoney(data.amount)}\nGhi chú: ${data.note || '(không có)'}`;
+  const text = `📋 Xác nhận:\n\n💰 Thanh toán: ${data.payment}\n📂 Danh mục: ${data.category}\n💵 Số tiền: ${formatMoney(data.amount)}\n📝 Ghi chú: ${data.note || '(không có)'}`;
   
   await replyText(replyToken, text, [
-    { label: 'Lưu', data: 'CONFIRM_SAVE' },
-    { label: 'Hủy', data: 'CONFIRM_CANCEL' }
+    { label: '✅ Lưu', data: 'CONFIRM_SAVE' },
+    { label: '❌ Hủy', data: 'CONFIRM_CANCEL' }
   ]);
 }
 
 async function askSumPeriod(replyToken) {
-  await replyText(replyToken, 'Tính tổng phạm vi nào?', [
-    { label: 'Hôm nay', data: 'SUM_TODAY' },
-    { label: '7 ngày', data: 'SUM_7DAYS' },
-    { label: 'Tháng này', data: 'SUM_MONTH' },
-    { label: 'Tất cả', data: 'SUM_ALL' },
-    { label: 'Tùy chọn', data: 'SUM_CUSTOM' }
+  await replyText(replyToken, '🧮 Tính tổng phạm vi nào?', [
+    { label: '📅 Hôm nay', data: 'SUM_TODAY' },
+    { label: '📆 7 ngày', data: 'SUM_7DAYS' },
+    { label: '🗓️ Tháng này', data: 'SUM_MONTH' },
+    { label: '♾️ Tất cả', data: 'SUM_ALL' },
+    { label: '🧾 Tùy chọn', data: 'SUM_CUSTOM' },
+    { label: '↩️ Menu', data: 'MENU' }
   ]);
 }
 
 async function showMenu(replyToken) {
-  await replyText(replyToken, 'Menu chính:', [
-    { label: 'Nhập mới', data: 'NEW_EXPENSE' },
-    { label: 'Tính tổng', data: 'SUM' }
+  await replyText(replyToken, '📋 Menu chính:', [
+    { label: '➕ Nhập mới', data: 'NEW_EXPENSE' },
+    { label: '🧮 Tính tổng', data: 'SUM' }
   ]);
 }
 
@@ -366,27 +379,29 @@ async function calculateSum(groupId, period, replyToken) {
     
     if (period === 'TODAY') {
       startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      periodLabel = `Tổng kết hôm nay (${formatDate(now)})`;
+      periodLabel = `📅 Tổng kết hôm nay (${formatDate(now)})`;
     } else if (period === '7DAYS') {
       startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      periodLabel = `Tổng kết 7 ngày (${formatDate(startDate)} → ${formatDate(now)})`;
+      periodLabel = `📆 Tổng kết 7 ngày (${formatDate(startDate)} → ${formatDate(now)})`;
     } else if (period === 'MONTH') {
       startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-      periodLabel = `Tổng kết tháng này (${formatDate(startDate)} → ${formatDate(now)})`;
+      periodLabel = `🗓️ Tổng kết tháng này (${formatDate(startDate)} → ${formatDate(now)})`;
     } else {
-      periodLabel = 'Tổng kết tất cả';
+      periodLabel = '♾️ Tổng kết tất cả';
     }
     
     const summary = processSummary(rows, groupId, startDate);
     
     await replyText(replyToken, `${periodLabel}\n\n${summary}`, [
-      { label: 'Nhập mới', data: 'NEW_EXPENSE' },
-      { label: 'Tính tổng', data: 'SUM' }
+      { label: '➕ Nhập mới', data: 'NEW_EXPENSE' },
+      { label: '🧮 Tính tổng', data: 'SUM' }
     ]);
     
   } catch (error) {
     console.error('Calculate error:', error);
-    await replyText(replyToken, 'Lỗi tính tổng!');
+    await replyText(replyToken, '❌ Lỗi tính tổng!', [
+      { label: '↩️ Menu', data: 'MENU' }
+    ]);
   }
 }
 
@@ -407,7 +422,7 @@ async function calculateSumCustom(groupId, startDateStr, endDateStr, replyToken)
       endDate.setFullYear(currentYear + 1);
     }
     
-    const periodLabel = `Tổng kết tùy chọn\n(${formatDate(startDate)} → ${formatDate(endDate)})`;
+    const periodLabel = `🧾 Tổng kết tùy chọn\n(${formatDate(startDate)} → ${formatDate(endDate)})`;
     
     let totalCash = 0;
     let totalOnline = 0;
@@ -442,26 +457,28 @@ async function calculateSumCustom(groupId, startDateStr, endDateStr, replyToken)
       }
     }
     
-    let result = `${periodLabel}\n\nTổng quan:\nTổng chi: ${formatMoney(totalCash + totalOnline)}\nTiền mặt: ${formatMoney(totalCash)}\nOnline: ${formatMoney(totalOnline)}`;
+    let result = `${periodLabel}\n\n💰 Tổng quan:\nTổng chi: ${formatMoney(totalCash + totalOnline)}\nTiền mặt: ${formatMoney(totalCash)}\nOnline: ${formatMoney(totalOnline)}`;
     
     if (Object.keys(byCategory).length > 0) {
-      result += '\n\nChi tiết:';
+      result += '\n\n📊 Chi tiết:';
       for (const cat in byCategory) {
         const c = byCategory[cat];
         result += `\n${cat}: ${formatMoney(c.cash + c.online)}`;
       }
     } else {
-      result += '\n\nChưa có dữ liệu.';
+      result += '\n\n📊 Chưa có dữ liệu.';
     }
     
     await replyText(replyToken, result, [
-      { label: 'Nhập mới', data: 'NEW_EXPENSE' },
-      { label: 'Tính tổng', data: 'SUM' }
+      { label: '➕ Nhập mới', data: 'NEW_EXPENSE' },
+      { label: '🧮 Tính tổng', data: 'SUM' }
     ]);
     
   } catch (error) {
     console.error('Calculate custom error:', error);
-    await replyText(replyToken, 'Lỗi tính tổng!');
+    await replyText(replyToken, '❌ Lỗi tính tổng!', [
+      { label: '↩️ Menu', data: 'MENU' }
+    ]);
   }
 }
 
@@ -499,16 +516,16 @@ function processSummary(rows, groupId, startDate) {
     }
   }
   
-  let result = `Tổng quan:\nTổng chi: ${formatMoney(totalCash + totalOnline)}\nTiền mặt: ${formatMoney(totalCash)}\nOnline: ${formatMoney(totalOnline)}`;
+  let result = `💰 Tổng quan:\nTổng chi: ${formatMoney(totalCash + totalOnline)}\nTiền mặt: ${formatMoney(totalCash)}\nOnline: ${formatMoney(totalOnline)}`;
   
   if (Object.keys(byCategory).length > 0) {
-    result += '\n\nChi tiết:';
+    result += '\n\n📊 Chi tiết:';
     for (const cat in byCategory) {
       const c = byCategory[cat];
       result += `\n${cat}: ${formatMoney(c.cash + c.online)}`;
     }
   } else {
-    result += '\n\nChưa có dữ liệu.';
+    result += '\n\n📊 Chưa có dữ liệu.';
   }
   
   return result;
