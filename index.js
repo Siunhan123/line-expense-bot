@@ -252,15 +252,34 @@ async function showMenu(replyToken) {
 }
 
 // ===== SHEETS =====
+// ... code trước giữ nguyên ...
+
+// ===== SHEETS =====
 async function getSheet() {
+  const { GoogleSpreadsheet } = require('google-spreadsheet');
   const doc = new GoogleSpreadsheet(SHEET_ID);
+  
   await doc.useServiceAccountAuth({
     client_email: process.env.GOOGLE_SERVICE_EMAIL,
     private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n')
   });
+  
   await doc.loadInfo();
-  return doc.sheetsByTitle[SHEET_NAME];
+  
+  console.log('Sheet title:', doc.title);
+  console.log('Available sheets:', Object.keys(doc.sheetsByTitle));
+  
+  const sheet = doc.sheetsByTitle[SHEET_NAME];
+  
+  if (!sheet) {
+    throw new Error(`Sheet "${SHEET_NAME}" not found. Available: ${Object.keys(doc.sheetsByTitle).join(', ')}`);
+  }
+  
+  return sheet;
 }
+
+// ... phần còn lại giữ nguyên ...
+
 
 async function saveExpense(groupId, data) {
   try {
