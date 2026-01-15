@@ -142,32 +142,6 @@ cron.schedule('0 22 * * *', async () => {
 
 console.log('✅ Bot started! Daily reminder scheduled for 22:00 JST');
 
-// ===== TEST NGAY (XÓA SAU KHI TEST XONG) =====
-setTimeout(async () => {
-  console.log('🧪 Testing reminder in 10 seconds...');
-  
-  try {
-    const groupIds = await getGroupIdsFromSheet();
-    console.log(`🧪 Found ${groupIds.length} GroupIDs to test:`, groupIds);
-    
-    for (const groupId of groupIds) {
-      try {
-        await client.pushMessage(groupId, {
-          type: 'text',
-          text: '🧪 TEST: Bot nhắc nhở đã hoạt động!\n\nTin nhắn nhắc nhở thật sẽ được gửi lúc 22:00 (10h đêm) giờ Tokyo hàng ngày.\n\n✅ Bạn có thể xóa tin nhắn này!'
-        });
-        console.log(`✅ Test sent to: ${groupId}`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      } catch (error) {
-        console.error(`❌ Test failed for ${groupId}:`, error.message);
-      }
-    }
-  } catch (error) {
-    console.error('❌ Test error:', error);
-  }
-}, 10000);
-// ===== HẾT PHẦN TEST =====
-
 // SHEETS OPERATIONS
 async function appendToSheet(values) {
   const auth = await getAuthClient();
