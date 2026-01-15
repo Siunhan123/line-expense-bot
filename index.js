@@ -159,7 +159,7 @@ async function handleTextMessage(userId, text, state, replyToken) {
   if (state.step === 'AMOUNT') {
     const cleanAmount = cleanText.replace(/[.,\s]/g, '');
     if (!/^\d+$/.test(cleanAmount)) {
-      await replyText(replyToken, '❌ Số tiền không hợp lệ! Vui lòng nhập số.\n\nVí dụ: 50000', [
+      await replyText(replyToken, '❌ Số tiền không hợp lệ! Vui lòng nhập số.\nVí dụ: 5000 ', [
         { label: '↩️ Menu', data: 'MENU' }
       ]);
       return;
@@ -184,7 +184,7 @@ async function handleTextMessage(userId, text, state, replyToken) {
     
   } else if (state.step === 'CUSTOM_DATE_START') {
     if (!/^\d{1,2}\/\d{1,2}$/.test(cleanText)) {
-      await replyText(replyToken, '❌ Định dạng không đúng! Nhập: DD/MM\n\nVí dụ: 01/01', [
+      await replyText(replyToken, '❌ Định dạng không đúng! Nhập: DD/MM\nVí dụ: 01/01', [
         { label: '↩️ Menu', data: 'MENU' }
       ]);
       return;
@@ -193,13 +193,13 @@ async function handleTextMessage(userId, text, state, replyToken) {
     state.customStartDate = cleanText;
     state.step = 'CUSTOM_DATE_END';
     userStates.set(userId, state);
-    await replyText(replyToken, '📅 Nhập ngày kết thúc (DD/MM):\n\nVí dụ: 15/01', [
+    await replyText(replyToken, '📅 Nhập ngày kết thúc (DD/MM):\nVí dụ: 15/01', [
       { label: '↩️ Menu', data: 'MENU' }
     ]);
     
   } else if (state.step === 'CUSTOM_DATE_END') {
     if (!/^\d{1,2}\/\d{1,2}$/.test(cleanText)) {
-      await replyText(replyToken, '❌ Định dạng không đúng! Nhập: DD/MM\n\nVí dụ: 15/01', [
+      await replyText(replyToken, '❌ Định dạng không đúng! Nhập: DD/MM\nVí dụ: 15/01', [
         { label: '↩️ Menu', data: 'MENU' }
       ]);
       return;
@@ -275,7 +275,7 @@ async function handlePostback(userId, data, state, replyToken) {
   } else if (data === 'SUM_CUSTOM') {
     state.step = 'CUSTOM_DATE_START';
     userStates.set(userId, state);
-    await replyText(replyToken, '🧾 Tính tổng tùy chọn\n\n📅 Nhập ngày bắt đầu (DD/MM):\n\nVí dụ: 01/01', [
+    await replyText(replyToken, '🧾 Tính tổng tùy chọn\n\n📅 Nhập ngày bắt đầu (DD/MM):\nVí dụ: 01/01', [
       { label: '↩️ Menu', data: 'MENU' }
     ]);
     
@@ -308,7 +308,7 @@ async function askCategory(replyToken) {
 }
 
 async function askAmount(replyToken) {
-  await replyText(replyToken, '💵 Nhập số tiền:\n\nVí dụ: 1200 ', [
+  await replyText(replyToken, '💵 Nhập số tiền:\nVí dụ: 1200 ', [
     { label: '↩️ Menu', data: 'MENU' }
   ]);
 }
@@ -523,7 +523,7 @@ function processSummary(rows, groupId, startDate) {
     result += '\n\n📊 Chi tiết theo danh mục:';
     for (const cat in byCategory) {
       const c = byCategory[cat];
-      result += `\n${cat}: Cash ${formatMoney(c.cash)} | Online ${formatMoney(c.online)} | ${formatMoney(c.cash + c.online)}`;
+      result += `\n${cat}: ${formatMoney(c.cash + c.online)} | Cash ${formatMoney(c.cash)} | Online ${formatMoney(c.online)}`;
     }
   } else {
     result += '\n\n📊 Chưa có dữ liệu.';
