@@ -1,6 +1,7 @@
 const express = require('express');
 const line = require('@line/bot-sdk');
-const { GoogleSpreadsheet } = require('google-spreadsheet');
+const { JWT } = require('google-auth-library');
+const https = require('https');
 
 const app = express();
 
@@ -24,6 +25,90 @@ const CATEGORIES = {
   '🛍️': 'Mua đồ',
   '📦': 'Đồ dùng khác'
 };
+
+// ===== GOOGLE AUTH =====
+let authClient;
+
+async function getAuthClient() {
+  if (authClient) return authClient;
+  
+  authClient = new JWT({
+    email: process.env.GOOGLE_SERVICE_EMAIL,
+    key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    scopes: ['https://www.googleapis.com/auth/spreadsheets']
+  });
+  
+  return authClient;
+}
+
+// ===== SHEETS OPERATIONS =====
+async function appendToSheet(values) {
+  const auth = await getAuthClient();
+  const token = await auth.getAccessToken();
+  
+  const range = `${SHEET_NAME}!A:F`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`;
+  
+  const data = JSON.stringify({
+    values: [values]
+  });
+  
+  return new Promise((resolve, reject) => {
+    const options = {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token.token}`,
+        'Content-Type': 'application/json',
+        'Content-Length': data.length
+      }
+    };
+    
+    const req = https.request(url, options, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(JSON.parse(body));
+        } else {
+          reject(new Error(`Sheets API error: ${res.statusCode} ${body}`));
+        }
+      });
+    });
+    
+    req.on('error', reject);
+    req.write(data);
+    req.end();
+  });
+}
+
+async function getSheetData() {
+  const auth = await getAuthClient();
+  const token = await auth.getAccessToken();
+  
+  const range = `${SHEET_NAME}!A:F`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}`;
+  
+  return new Promise((resolve, reject) => {
+    const options = {
+      headers: {
+        'Authorization': `Bearer ${token.token}`
+      }
+    };
+    
+    https.get(url, options, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          const data = JSON.parse(body);
+          resolve(data.values || []);
+        } else {
+          reject(new Error(`Sheets API error: ${res.statusCode} ${body}`));
+        }
+      });
+    }).on('error', reject);
+  });
+}
 
 // ===== HEALTH CHECK =====
 app.get('/', (req, res) => {
@@ -193,8 +278,8 @@ async function handlePostback(userId, data, state, replyToken) {
 // ===== UI =====
 async function askPayment(replyToken) {
   await replyText(replyToken, '💰 Chọn loại thanh toán:', [
-    { label: '💵 Tiền mặt cùi', data: 'PAY_CASH' },
-    { label: '💳 Online xịn', data: 'PAY_ONLINE' },
+    { label: '💵 Tiền mặt', data: 'PAY_CASH' },
+    { label: '💳 Online', data: 'PAY_ONLINE' },
     { label: '↩️ Menu', data: 'MENU' }
   ]);
 }
@@ -251,56 +336,31 @@ async function showMenu(replyToken) {
   ]);
 }
 
-// ===== SHEETS =====
-// ... code trước giữ nguyên ...
-
-// ===== SHEETS =====
-async function getSheet() {
-  const { GoogleSpreadsheet } = require('google-spreadsheet');
-  const doc = new GoogleSpreadsheet(SHEET_ID);
-  
-  await doc.useServiceAccountAuth({
-    client_email: process.env.GOOGLE_SERVICE_EMAIL,
-    private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n')
-  });
-  
-  await doc.loadInfo();
-  
-  console.log('Sheet title:', doc.title);
-  console.log('Available sheets:', Object.keys(doc.sheetsByTitle));
-  
-  const sheet = doc.sheetsByTitle[SHEET_NAME];
-  
-  if (!sheet) {
-    throw new Error(`Sheet "${SHEET_NAME}" not found. Available: ${Object.keys(doc.sheetsByTitle).join(', ')}`);
-  }
-  
-  return sheet;
-}
-
-// ... phần còn lại giữ nguyên ...
-
-
+// ===== SAVE =====
 async function saveExpense(groupId, data) {
   try {
-    const sheet = await getSheet();
-    await sheet.addRow({
-      Timestamp: new Date().toISOString(),
-      GroupID: groupId,
-      Payment: data.payment,
-      Category: data.category,
-      Amount: data.amount,
-      Note: data.note || ''
-    });
+    const timestamp = new Date().toISOString();
+    const row = [
+      timestamp,
+      groupId,
+      data.payment,
+      data.category,
+      data.amount,
+      data.note || ''
+    ];
+    
+    await appendToSheet(row);
+    console.log('Saved to sheet:', row);
   } catch (error) {
     console.error('Save error:', error);
+    throw error;
   }
 }
 
+// ===== CALCULATE =====
 async function calculateSum(groupId, period, replyToken) {
   try {
-    const sheet = await getSheet();
-    const rows = await sheet.getRows();
+    const rows = await getSheetData();
     
     const now = new Date();
     let startDate = new Date(0);
@@ -319,7 +379,7 @@ async function calculateSum(groupId, period, replyToken) {
       periodLabel = '♾️ Tổng kết tất cả';
     }
     
-    const summary = await processSummary(rows, groupId, startDate);
+    const summary = processSummary(rows, groupId, startDate);
     
     let result = `${periodLabel}\n\n${summary}`;
     
@@ -336,8 +396,7 @@ async function calculateSum(groupId, period, replyToken) {
 
 async function calculateSumCustom(groupId, startDateStr, endDateStr, replyToken) {
   try {
-    const sheet = await getSheet();
-    const rows = await sheet.getRows();
+    const rows = await getSheetData();
     
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -357,14 +416,17 @@ async function calculateSumCustom(groupId, startDateStr, endDateStr, replyToken)
     let totalCash = 0, totalOnline = 0;
     const byCategory = {};
     
-    rows.forEach(row => {
-      const date = new Date(row.get('Timestamp'));
-      const gid = row.get('GroupID');
-      const payment = row.get('Payment');
-      const category = row.get('Category');
-      const amount = parseFloat(row.get('Amount')) || 0;
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.length < 5) continue;
       
-      if (gid !== groupId || date < startDate || date > endDate) return;
+      const date = new Date(row[0]);
+      const gid = row[1];
+      const payment = row[2];
+      const category = row[3];
+      const amount = parseFloat(row[4]) || 0;
+      
+      if (gid !== groupId || date < startDate || date > endDate) continue;
       
       if (payment.includes('Tiền mặt')) {
         totalCash += amount;
@@ -378,7 +440,7 @@ async function calculateSumCustom(groupId, startDateStr, endDateStr, replyToken)
       } else {
         byCategory[category].online += amount;
       }
-    });
+    }
     
     let result = `${periodLabel}\n\n`;
     result += `💰 Tổng quan:\nTổng chi: ${formatMoney(totalCash + totalOnline)}\nTiền mặt: ${formatMoney(totalCash)}\nOnline: ${formatMoney(totalOnline)}`;
@@ -400,22 +462,25 @@ async function calculateSumCustom(groupId, startDateStr, endDateStr, replyToken)
     
   } catch (error) {
     console.error('Calculate custom error:', error);
-    await replyText(replyToken, '❌ Lỗi tính tổng tùy chọn!\n\nVui lòng kiểm tra định dạng ngày (DD/MM)');
+    await replyText(replyToken, '❌ Lỗi tính tổng tùy chọn!');
   }
 }
 
-async function processSummary(rows, groupId, startDate) {
+function processSummary(rows, groupId, startDate) {
   let totalCash = 0, totalOnline = 0;
   const byCategory = {};
   
-  rows.forEach(row => {
-    const date = new Date(row.get('Timestamp'));
-    const gid = row.get('GroupID');
-    const payment = row.get('Payment');
-    const category = row.get('Category');
-    const amount = parseFloat(row.get('Amount')) || 0;
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length < 5) continue;
     
-    if (gid !== groupId || date < startDate) return;
+    const date = new Date(row[0]);
+    const gid = row[1];
+    const payment = row[2];
+    const category = row[3];
+    const amount = parseFloat(row[4]) || 0;
+    
+    if (gid !== groupId || date < startDate) continue;
     
     if (payment.includes('Tiền mặt')) {
       totalCash += amount;
@@ -429,7 +494,7 @@ async function processSummary(rows, groupId, startDate) {
     } else {
       byCategory[category].online += amount;
     }
-  });
+  }
   
   let result = `💰 Tổng quan:\nTổng chi: ${formatMoney(totalCash + totalOnline)}\nTiền mặt: ${formatMoney(totalCash)}\nOnline: ${formatMoney(totalOnline)}`;
   
